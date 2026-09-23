@@ -1,0 +1,29 @@
+@import "tailwindcss";
+
+@layer base {
+  body {
+    @apply m-0 p-0 text-slate-100 font-sans antialiased select-none;
+    min-height: 100vh;
+    background-color: #030712;
+  }
+}
+
+/* Cosmic Theme Background with glowing space nebulas & starfield */
+.theme-cosmic {
+  background-color: #030712;
+  background-image: 
+    radial-gradient(circle at 15% 20%, rgba(99, 102, 241, 0.15) 0%, transparent 40%),
+    radial-gradient(circle at 85% 30%, rgba(168, 85, 247, 0.15) 0%, transparent 40%),
+    radial-gradient(circle at 50% 80%, rgba(236, 72, 153, 0.1) 0%, transparent 50%),
+    radial-gradient(circle at 20% 70%, rgba(6, 182, 212, 0.1) 0%, transparent 35%);
+  background-attachment: fixed;
+}
+
+/* Classic Theme Background with refined slate tabletop textures */
+.theme-classic {
+  background-color: #0f172a;
+  background-image: 
+    radial-gradient(circle at 50% 10%, rgba(51, 65, 85, 0.4) 0%, transparent 60%),
+    radial-gradient(circle at 50% 90%, rgba(30, 41, 59, 0.6) 0%, transparent 60%);
+  background-attachment: fixed;
+}

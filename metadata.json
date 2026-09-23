@@ -1,0 +1,6 @@
+{
+  "name": "Pyramid Row Master",
+  "description": "A turn-based strategy game where players and AI bots claim circles in a pyramid to complete horizontal and diagonal rows.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
