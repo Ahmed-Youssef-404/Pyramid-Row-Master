@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { GameState, GameSettings, Player } from './types/game';
+import { RoomState } from './types/online';
 import {
   loadActiveGame,
   saveActiveGame,
@@ -11,6 +12,7 @@ import {
 } from './utils/storage';
 import { createNewGame } from './game/gameLogic';
 import { sounds } from './game/sound';
+import { onlineClient, getOnlineSession, clearOnlineSession } from './services/onlineClient';
 
 import { Header } from './components/Common/Header';
 import { HowToPlayModal } from './components/Modals/HowToPlayModal';
@@ -22,6 +24,9 @@ import { GameView } from './pages/GameView';
 import { ResultsView } from './pages/ResultsView';
 import { RankingsView } from './pages/RankingsView';
 import { SettingsView } from './pages/SettingsView';
+import { OnlineLobbyView } from './pages/OnlineLobbyView';
+import { OnlineGameView } from './pages/OnlineGameView';
+import { OnlineResultsView } from './pages/OnlineResultsView';
 
 export default function App() {
   const [currentView, setCurrentView] = useState<string>('home');
@@ -30,12 +35,46 @@ export default function App() {
   const [showResumeModal, setShowResumeModal] = useState<boolean>(false);
   const [showHelpModal, setShowHelpModal] = useState<boolean>(false);
 
+  // Online Multiplayer State
+  const [onlineRoom, setOnlineRoom] = useState<RoomState | null>(null);
+  const [onlinePlayerId, setOnlinePlayerId] = useState<string | null>(null);
+
   // Initialize active game & audio settings on mount
   useEffect(() => {
     sounds.setMuted(!settings.soundEnabled);
 
+    // 1. Check if user was inside an active online game before refresh
+    const savedOnlineSession = getOnlineSession();
+    if (savedOnlineSession && savedOnlineSession.roomId && savedOnlineSession.playerId) {
+      onlineClient
+        .connect()
+        .then(() =>
+          onlineClient.reconnect({
+            roomId: savedOnlineSession.roomId,
+            playerId: savedOnlineSession.playerId,
+          })
+        )
+        .then(res => {
+          if (res.success && res.room && res.playerId) {
+            setOnlineRoom(res.room);
+            setOnlinePlayerId(res.playerId);
+            if (res.room.status === 'playing' && res.room.gameState) {
+              setCurrentView('online_game');
+            } else if (res.room.status === 'finished') {
+              setCurrentView('online_results');
+            } else if (res.room.status === 'waiting') {
+              setCurrentView('online_lobby');
+            }
+          }
+        })
+        .catch(() => {
+          clearOnlineSession();
+        });
+    }
+
+    // 2. Check local saved game
     const savedGame = loadActiveGame();
-    if (savedGame && savedGame.status === 'playing') {
+    if (savedGame && savedGame.status === 'playing' && !savedOnlineSession) {
       setActiveGame(savedGame);
       setShowResumeModal(true);
     }
@@ -52,7 +91,7 @@ export default function App() {
     });
   };
 
-  // Setup / Start New Game
+  // Local Game: Setup / Start New Game
   const handleStartGame = (players: Player[], pyramidSize: number) => {
     const newGame = createNewGame(players, pyramidSize);
     setActiveGame(newGame);
@@ -60,13 +99,13 @@ export default function App() {
     setCurrentView('game');
   };
 
-  // State update during moves
+  // Local Game: State update during moves
   const handleUpdateGameState = (nextState: GameState) => {
     setActiveGame(nextState);
     saveActiveGame(nextState);
   };
 
-  // Game over handler
+  // Local Game: Game over handler
   const handleGameOver = (finalState: GameState) => {
     setActiveGame(finalState);
     recordGameResults(finalState);
@@ -74,7 +113,7 @@ export default function App() {
     setCurrentView('results');
   };
 
-  // Play Again with same players & board size
+  // Local Game: Play Again with same players & board size
   const handlePlayAgain = () => {
     if (!activeGame) return;
     const newGame = createNewGame(activeGame.players, activeGame.pyramidSize);
@@ -83,7 +122,7 @@ export default function App() {
     setCurrentView('game');
   };
 
-  // Restart current match immediately
+  // Local Game: Restart current match immediately
   const handleRestartMatch = () => {
     if (!activeGame) return;
     const freshGame = createNewGame(activeGame.players, activeGame.pyramidSize);
@@ -94,7 +133,35 @@ export default function App() {
   // Reset all local storage data
   const handleResetAllData = () => {
     setActiveGame(null);
+    clearActiveGame();
+    clearOnlineSession();
+    setOnlineRoom(null);
+    setOnlinePlayerId(null);
     setSettings(DEFAULT_SETTINGS);
+    setCurrentView('home');
+  };
+
+  // Online Multiplayer Handlers
+  const handleOnlineGameStarted = (room: RoomState, playerId: string) => {
+    setOnlineRoom(room);
+    setOnlinePlayerId(playerId);
+    setCurrentView('online_game');
+  };
+
+  const handleOnlineGameOver = (finalRoom: RoomState) => {
+    setOnlineRoom(finalRoom);
+    setCurrentView('online_results');
+  };
+
+  const handleOnlineRematchStarted = (updatedRoom: RoomState) => {
+    setOnlineRoom(updatedRoom);
+    setCurrentView('online_game');
+  };
+
+  const handleLeaveOnlineGame = () => {
+    onlineClient.leaveRoom();
+    setOnlineRoom(null);
+    setOnlinePlayerId(null);
     setCurrentView('home');
   };
 
@@ -107,11 +174,17 @@ export default function App() {
       {/* Top App Header */}
       <Header
         currentView={currentView}
-        onNavigate={setCurrentView}
+        onNavigate={(view) => {
+          if (view === 'home' && currentView === 'online_game') {
+            handleLeaveOnlineGame();
+          } else {
+            setCurrentView(view);
+          }
+        }}
         settings={settings}
         onUpdateSettings={handleUpdateSettings}
         onOpenHelp={() => setShowHelpModal(true)}
-        isGameActive={activeGame?.status === 'playing'}
+        isGameActive={activeGame?.status === 'playing' || onlineRoom?.status === 'playing'}
       />
 
       {/* Main Viewport Container */}
@@ -119,6 +192,7 @@ export default function App() {
         {currentView === 'home' && (
           <HomeView
             onStartNewGame={() => setCurrentView('setup')}
+            onOpenOnline={() => setCurrentView('online_lobby')}
             onResumeGame={() => setCurrentView('game')}
             onOpenRankings={() => setCurrentView('rankings')}
             onOpenSettings={() => setCurrentView('settings')}
@@ -127,6 +201,7 @@ export default function App() {
           />
         )}
 
+        {/* Local Pass & Play / Bots Setup */}
         {currentView === 'setup' && (
           <SetupView
             onStartGame={handleStartGame}
@@ -134,6 +209,7 @@ export default function App() {
           />
         )}
 
+        {/* Local Active Game */}
         {currentView === 'game' && activeGame && (
           <GameView
             gameState={activeGame}
@@ -146,6 +222,7 @@ export default function App() {
           />
         )}
 
+        {/* Local Results */}
         {currentView === 'results' && activeGame && (
           <ResultsView
             gameState={activeGame}
@@ -156,21 +233,73 @@ export default function App() {
           />
         )}
 
-        {currentView === 'rankings' && (
-          <RankingsView onBack={() => setCurrentView(activeGame?.status === 'playing' ? 'game' : 'home')} />
+        {/* Online Multiplayer Lobby (Create Room / Join Room / Room Waiting) */}
+        {currentView === 'online_lobby' && (
+          <OnlineLobbyView
+            onBackToHome={() => setCurrentView('home')}
+            onGameStarted={handleOnlineGameStarted}
+            initialRoomState={onlineRoom}
+            initialPlayerId={onlinePlayerId}
+          />
         )}
 
+        {/* Online Active Game */}
+        {currentView === 'online_game' && onlineRoom && onlinePlayerId && (
+          <OnlineGameView
+            initialRoom={onlineRoom}
+            myPlayerId={onlinePlayerId}
+            onGameOver={handleOnlineGameOver}
+            onLeaveRoom={handleLeaveOnlineGame}
+            onOpenHelp={() => setShowHelpModal(true)}
+            settings={settings}
+          />
+        )}
+
+        {/* Online Results Screen */}
+        {currentView === 'online_results' && onlineRoom && onlinePlayerId && (
+          <OnlineResultsView
+            room={onlineRoom}
+            myPlayerId={onlinePlayerId}
+            onRematchStarted={handleOnlineRematchStarted}
+            onGoHome={handleLeaveOnlineGame}
+          />
+        )}
+
+        {/* Rankings */}
+        {currentView === 'rankings' && (
+          <RankingsView
+            onBack={() => {
+              if (onlineRoom?.status === 'playing') {
+                setCurrentView('online_game');
+              } else if (activeGame?.status === 'playing') {
+                setCurrentView('game');
+              } else {
+                setCurrentView('home');
+              }
+            }}
+          />
+        )}
+
+        {/* Settings */}
         {currentView === 'settings' && (
           <SettingsView
             settings={settings}
             onUpdateSettings={handleUpdateSettings}
-            onBack={() => setCurrentView(activeGame?.status === 'playing' ? 'game' : 'home')}
+            onBack={() => {
+              if (onlineRoom?.status === 'playing') {
+                setCurrentView('online_game');
+              } else if (activeGame?.status === 'playing') {
+                setCurrentView('game');
+              } else {
+                setCurrentView('home');
+              }
+            }}
             onResetAllData={handleResetAllData}
           />
         )}
       </main>
 
-      {/* Resume Unfinished Game Dialog on First Load */}
+      {/* Resume Unfinished Local Game Dialog on First Load */}
       {showResumeModal && activeGame && (
         <ResumeGameModal
           isOpen={showResumeModal}

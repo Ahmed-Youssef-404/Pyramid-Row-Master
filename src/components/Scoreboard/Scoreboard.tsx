@@ -1,13 +1,15 @@
 import React from 'react';
-import { Crown, Bot } from 'lucide-react';
+import { Crown, Bot, Wifi, WifiOff } from 'lucide-react';
 import { GameState } from '../../types/game';
+import { OnlinePlayer } from '../../types/online';
 
 interface ScoreboardProps {
   gameState: GameState;
   isBotThinking?: boolean;
+  onlinePlayers?: OnlinePlayer[];
 }
 
-export const Scoreboard: React.FC<ScoreboardProps> = ({ gameState, isBotThinking }) => {
+export const Scoreboard: React.FC<ScoreboardProps> = ({ gameState, isBotThinking, onlinePlayers }) => {
   const {
     players,
     scores,
@@ -32,6 +34,10 @@ export const Scoreboard: React.FC<ScoreboardProps> = ({ gameState, isBotThinking
           const rowsCount = rowsCompletedCount[player.id] || 0;
           const circlesCount = circlesClaimedCount[player.id] || 0;
           const hasCrown = isLeader(player.id);
+
+          const onlinePlayer = onlinePlayers?.find(p => p.id === player.id);
+          const isAiTakenOver = onlinePlayer?.isAiTakenOver;
+          const isBot = player.isBot || onlinePlayer?.isBot || onlinePlayer?.isAiControlled;
 
           return (
             <div
@@ -74,28 +80,49 @@ export const Scoreboard: React.FC<ScoreboardProps> = ({ gameState, isBotThinking
                       isCurrentTurn ? 'text-white' : 'text-slate-300'
                     }`}
                   >
-                    {player.name}
+                    {onlinePlayer?.originalHumanName || player.name}
                   </span>
-                  {player.isBot && (
+
+                  {isAiTakenOver ? (
                     <span
-                      title={`AI Bot (${player.difficulty || 'medium'})`}
-                      className="shrink-0 inline-flex items-center gap-0.5 text-[9px] font-bold px-1.5 py-0.2 rounded bg-indigo-500/20 text-indigo-300 border border-indigo-500/30"
+                      title="AI Took Over this player"
+                      className="shrink-0 inline-flex items-center gap-0.5 text-[9px] font-bold px-1.5 py-0.2 rounded bg-amber-500/20 text-amber-300 border border-amber-500/30"
+                    >
+                      <Bot className="w-2.5 h-2.5" />
+                      AI TAKEOVER
+                    </span>
+                  ) : isBot ? (
+                    <span
+                      title={`AI Bot (${player.difficulty || onlinePlayer?.difficulty || 'medium'})`}
+                      className="shrink-0 inline-flex items-center gap-0.5 text-[9px] font-bold px-1.5 py-0.2 rounded bg-purple-500/20 text-purple-300 border border-purple-500/30"
                     >
                       <Bot className="w-2.5 h-2.5" />
                       BOT
                     </span>
-                  )}
+                  ) : null}
                 </div>
 
-                {hasCrown && (
-                  <span
-                    title="Current Leader"
-                    className="shrink-0 flex items-center text-amber-400 bg-amber-400/10 px-1.5 py-0.5 rounded-full text-[10px] font-bold"
-                  >
-                    <Crown className="w-3 h-3 mr-0.5" />
-                    Top
-                  </span>
-                )}
+                <div className="flex items-center gap-1 shrink-0">
+                  {onlinePlayer && !isBot && (
+                    onlinePlayer.status === 'reconnecting' ? (
+                      <span title="Reconnecting..." className="w-2 h-2 rounded-full bg-amber-400 animate-ping" />
+                    ) : onlinePlayer.isConnected ? (
+                      <span title="Online" className="w-2 h-2 rounded-full bg-emerald-400" />
+                    ) : (
+                      <span title="Disconnected" className="w-2 h-2 rounded-full bg-rose-400" />
+                    )
+                  )}
+
+                  {hasCrown && (
+                    <span
+                      title="Current Leader"
+                      className="flex items-center text-amber-400 bg-amber-400/10 px-1.5 py-0.5 rounded-full text-[10px] font-bold"
+                    >
+                      <Crown className="w-3 h-3 mr-0.5" />
+                      Top
+                    </span>
+                  )}
+                </div>
               </div>
 
               {/* Big Score Display */}

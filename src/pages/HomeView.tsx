@@ -1,10 +1,11 @@
 import React from 'react';
-import { Play, RotateCcw, Trophy, Settings, HelpCircle, Users, Sparkles, Bot } from 'lucide-react';
+import { Play, RotateCcw, Trophy, Settings, HelpCircle, Users, Sparkles, Bot, Globe } from 'lucide-react';
 import { Button } from '../components/Common/Button';
 import { GameState } from '../types/game';
 
 interface HomeViewProps {
   onStartNewGame: () => void;
+  onOpenOnline: () => void;
   onResumeGame: () => void;
   onOpenRankings: () => void;
   onOpenSettings: () => void;
@@ -14,6 +15,7 @@ interface HomeViewProps {
 
 export const HomeView: React.FC<HomeViewProps> = ({
   onStartNewGame,
+  onOpenOnline,
   onResumeGame,
   onOpenRankings,
   onOpenSettings,
@@ -75,16 +77,30 @@ export const HomeView: React.FC<HomeViewProps> = ({
           </div>
         )}
 
-        {/* Play / New Game */}
-        <Button
-          variant="primary"
-          size="xl"
-          className="w-full"
-          icon={<Play className="w-5 h-5 fill-current" />}
-          onClick={onStartNewGame}
-        >
-          {hasActiveGame ? 'New Game' : 'Play Game'}
-        </Button>
+        {/* Game Mode Selection */}
+        <div className="space-y-2.5">
+          {/* Online Multiplayer */}
+          <Button
+            variant="accent"
+            size="xl"
+            className="w-full relative shadow-xl shadow-indigo-600/25 ring-1 ring-indigo-400/40"
+            icon={<Globe className="w-5 h-5 text-amber-300" />}
+            onClick={onOpenOnline}
+          >
+            Online Game
+          </Button>
+
+          {/* Local Game */}
+          <Button
+            variant="primary"
+            size="xl"
+            className="w-full"
+            icon={<Play className="w-5 h-5 fill-current" />}
+            onClick={onStartNewGame}
+          >
+            {hasActiveGame ? 'New Local Game' : 'Local Game (Pass & Play / Bots)'}
+          </Button>
+        </div>
 
         {/* Leaderboard / Rankings */}
         <Button
